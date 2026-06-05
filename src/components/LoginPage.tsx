@@ -6,12 +6,10 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, User, GraduationCap, ArrowRight } from 'lucide-react';
 import { UserSession } from '../types';
-// 1. Kita import fungsi createClient resmi dari Supabase library
 import { createClient } from '@supabase/supabase-js';
 
-// 2. Inisialisasi koneksi langsung menggunakan URL proyek Supabase kamu yang ada di foto pertama
+// Inisialisasi koneksi Supabase
 const supabaseUrl = 'https://qcrgbzpihvjdopuawprn.supabase.co';
-// Salin anon key/Project API key Supabase kamu di bawah ini
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjcmdienBpaHZqdmRvcHVhd3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODkxMDAsImV4cCI6MjA5NjE2NTEwMH0._ctMHZWlBifDxW2BvIWFHqVk7gfP0YbC2D3ggEZyod8'; 
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -44,7 +42,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
     setIsLoading(true);
 
     try {
-      // 3. Kueri langsung membaca tabel public.users di Supabase kamu
+      // 1. Kueri langsung ke tabel users di Supabase
       const { data: user, error: supabaseError } = await supabase
         .from('users')
         .select('*')
@@ -59,22 +57,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         return;
       }
 
-      // 4. Set session login dinamis berdasarkan data asli dari Supabase
-      const session: UserSession = {
-        username: user.username,
-        role: user.role, // otomatis membaca 'admin', 'teacher', atau 'kepsek'
-        name: user.name || user.username,
-        id: user.id
-      };
-
-      if (supabaseError || !user) {
-        setError('Username atau Password yang Anda masukkan salah.');
-        addToast('Login gagal, periksa kredensial Anda.', 'error');
-        setIsLoading(false);
-        return;
-      }
-
-      // === SEJAK BARIS INI YANG DIGANTI ===
+      // 2. Selaraskan role dari database Supabase ke tipe Role yang sah di types.ts
       let roleAplikasi: 'admin' | 'guru' | 'siswa' | 'ortu' = 'guru';
       
       if (user.role === 'admin') {
@@ -83,6 +66,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         roleAplikasi = 'guru'; 
       }
 
+      // 3. Susun objek session menggunakan roleAplikasi yang sudah diubah
+      const session: UserSession = {
+        username: user.username,
+        role: roleAplikasi, 
+        name: user.name || user.username,
+        id: String(user.id)
+      };
+
+      // 4. Jalankan fungsi sukses login
       onLoginSuccess(session);
       addToast(`Selamat datang kembali, ${session.name}!`, 'success');
 
@@ -92,11 +84,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleShortcutLogin = (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
   };
 
   return (
@@ -111,7 +98,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
             <div className="w-16 h-16 rounded-2xl bg-navy flex items-center justify-center shadow-lg shadow-navy/20 mb-4 ring-4 ring-slate-100">
               <GraduationCap className="w-9 h-9 text-accent-amber" />
             </div>
-            <h1 className="text-2xl font-bold text-navy-dark tracking-tight"> MI AL-MANAR</h1>
+            <h1 className="text-2xl font-bold text-navy-dark tracking-tight">MI AL-MANAR</h1>
             <p className="text-xs text-slate-500 text-center mt-1">Portal Digital AL-MANAR</p>
           </div>
 
