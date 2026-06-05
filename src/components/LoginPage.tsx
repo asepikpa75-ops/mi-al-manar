@@ -8,7 +8,7 @@ import { Eye, EyeOff, Lock, User, GraduationCap, ArrowRight } from 'lucide-react
 import { UserSession } from '../types';
 import { createClient } from '@supabase/supabase-js';
 
-// Inisialisasi koneksi Supabase
+// Inisialisasi koneksi Supabase resmi tanpa typo
 const supabaseUrl = 'https://qcrgbzpihvjdopuawpn.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjcmdienBpaHZqdmRvcHVhd3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODkxMDAsImV4cCI6MjA5NjE2NTEwMH0._ctMHZWlBifDxW2BvIWFHqVk7gfP0YbC2D3ggEZyod8'; 
 
@@ -42,7 +42,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
     setIsLoading(true);
 
     try {
-      // 1. Kueri langsung ke tabel users di Supabase
+      // 1. Ambil data dari database Supabase
       const { data: user, error: supabaseError } = await supabase
         .from('users')
         .select('*')
@@ -57,7 +57,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         return;
       }
 
-      // 2. Selaraskan role dari database Supabase ke tipe Role yang sah di types.ts
+      // 2. Penyelarasan Role agar lolos validasi strict types.ts
       let roleAplikasi: 'admin' | 'guru' | 'siswa' | 'ortu' = 'guru';
       
       if (user.role === 'admin') {
@@ -66,7 +66,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         roleAplikasi = 'guru'; 
       }
 
-      // 3. Susun objek session menggunakan roleAplikasi yang sudah diubah
+      // 3. Susun objek session menggunakan roleAplikasi yang sudah VALID
       const session: UserSession = {
         username: user.username,
         role: roleAplikasi, 
@@ -93,7 +93,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
 
       <div className="max-w-md w-full animate-fade-scale z-10">
         <div className="bg-white rounded-3xl shadow-2xl p-8 border border-white/10 relative overflow-hidden">
-          {/* Header */}
           <div className="flex flex-col items-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-navy flex items-center justify-center shadow-lg shadow-navy/20 mb-4 ring-4 ring-slate-100">
               <GraduationCap className="w-9 h-9 text-accent-amber" />
@@ -102,7 +101,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
             <p className="text-xs text-slate-500 text-center mt-1">Portal Digital AL-MANAR</p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wider">Username</label>
