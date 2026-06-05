@@ -115,14 +115,25 @@ export function saveData<T>(key: string, data: T): void {
 // Ambil data terbaru dari internet secara mandiri tanpa merusak alur UI
 async function syncDataFromSupabase() {
   try {
-    // 1. Tarik tabel 'students' Supabase, perbarui memori lokal siswa
+    // 1. Tarik tabel 'students' Supabase, sesuaikan class_id menjadi kelas teks
     const { data: onlineStudents } = await supabase.from('students').select('*');
     if (onlineStudents && onlineStudents.length > 0) {
-      const mappedSiswa: Siswa[] = onlineStudents.map((s: any) => ({
-        nis: s.username || String(s.id).substring(0, 5),
-        nama: s.name,
-        kelas: s.class_name || '10A'
-      }));
+      const mappedSiswa: Siswa[] = onlineStudents.map((s: any) => {
+        // Logika konversi otomatis: Jika class_id berisi penanda, sesuaikan ke format kelas aplikasi
+        let namaKelas = '10A'; 
+        if (s.class_id && String(s.class_id).toLowerCase().includes('b')) {
+          namaKelas = '10B';
+        } else if (s.class_id) {
+          // Jika class_id berisi teks/angka biasa, gunakan langsung sebagai nama kelas
+          namaKelas = String(s.class_id);
+        }
+
+        return {
+          nis: s.username || String(s.id).substring(0, 5),
+          nama: s.name,
+          kelas: namaKelas
+        };
+      });
       localStorage.setItem('sis_siswa', JSON.stringify(mappedSiswa));
     }
 
