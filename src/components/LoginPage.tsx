@@ -67,6 +67,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         id: user.id
       };
 
+      if (supabaseError || !user) {
+        setError('Username atau Password yang Anda masukkan salah.');
+        addToast('Login gagal, periksa kredensial Anda.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // === SEJAK BARIS INI YANG DIGANTI ===
+      let roleAplikasi: 'admin' | 'guru' | 'siswa' | 'ortu' = 'guru';
+      
+      if (user.role === 'admin') {
+        roleAplikasi = 'admin';
+      } else if (user.role === 'teacher' || user.role === 'kepsek') {
+        roleAplikasi = 'guru'; 
+      }
+
       onLoginSuccess(session);
       addToast(`Selamat datang kembali, ${session.name}!`, 'success');
 
