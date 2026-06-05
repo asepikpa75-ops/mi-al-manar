@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-@import "tailwindcss";
+ @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+ @import "tailwindcss";
 
-@theme {
+ @theme {
   --font-sans: "Poppins", sans-serif;
   --color-navy: #1e3a5f;
   --color-navy-dark: #12223a;
