@@ -8,7 +8,7 @@ import { Eye, EyeOff, Lock, User, GraduationCap, ArrowRight } from 'lucide-react
 import { UserSession } from '../types';
 import { createClient } from '@supabase/supabase-js';
 
-// Inisialisasi koneksi Supabase resmi tanpa typo
+// Inisialisasi koneksi Supabase Resmi
 const supabaseUrl = 'https://qcrgbzpihvjvdopuawpn.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjcmdienBpaHZqdmRvcHVhd3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODkxMDAsImV4cCI6MjA5NjE2NTEwMH0._ctMHZWlBifDxW2BvIWFHqVk7gfP0YbC2D3ggEZyod8'; 
 
@@ -42,44 +42,66 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
     setIsLoading(true);
 
     try {
-      // 1. Ambil data dari database Supabase
-      const { data: user, error: supabaseError } = await supabase
+      // 1. Coba cari akun pertama kali di tabel 'users' (untuk Admin/Guru/Kepsek)
+      const { data: user, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('username', uInput)
         .eq('password', pInput)
-        .single();
+        .maybeSingle();
 
-      if (supabaseError || !user) {
-        setError('Username atau Password yang Anda masukkan salah.');
-        addToast('Login gagal, periksa kredensial Anda.', 'error');
-        setIsLoading(false);
+      if (user) {
+        // Penyelarasan role untuk data dari tabel 'users'
+        let roleAplikasi: 'admin' | 'guru' | 'siswa' | 'ortu' = 'guru';
+        if (user.role === 'admin') roleAplikasi = 'admin';
+        else if (user.role === 'teacher' || user.role === 'kepsek') roleAplikasi = 'guru';
+
+        const session: UserSession = {
+          username: user.username,
+          role: roleAplikasi, 
+          name: user.name || user.username,
+          id: String(user.id),
+          extra: user.mapel || ''
+        };
+
+        onLoginSuccess(session);
+        addToast(`Selamat datang kembali, ${session.name}!`, 'success');
         return;
       }
 
-      // 2. Penyelarasan Role agar lolos validasi strict types.ts
-      let roleAplikasi: 'admin' | 'guru' | 'siswa' | 'ortu' = 'guru';
-      
-      if (user.role === 'admin') {
-        roleAplikasi = 'admin';
-      } else if (user.role === 'teacher' || user.role === 'kepsek') {
-        roleAplikasi = 'guru'; 
+      // 2. Jika di tabel 'users' tidak ada, coba cari di tabel 'students' (untuk Siswa/Ortu)
+      // Mengasumsikan username siswa menggunakan kolom 'nis' atau 'name' di tabel kamu, dan pass-nya di kolom 'password'
+      const { data: student, error: studentError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('username', uInput) // Silakan sesuaikan kolom username di Supabase jika memakai nama lain (misal: 'nis')
+        .eq('password', pInput)
+        .maybeSingle();
+
+      if (student) {
+        // Deteksi apakah yang login Siswa atau Ortu berdasarkan pola ketikan password atau penanda lain
+        // Di sini kita defaultkan sebagai 'siswa' atau bisa disesuaikan dengan kebutuhan aplikasimu
+        const isOrtu = uInput.toLowerCase().includes('ortu') || pInput.toLowerCase().includes('ortu');
+        
+        const session: UserSession = {
+          username: student.username,
+          role: isOrtu ? 'ortu' : 'siswa', 
+          name: student.name,
+          id: String(student.id),
+          extra: student.class_name || ''
+        };
+
+        onLoginSuccess(session);
+        addToast(`Selamat datang kembali, ${session.name}!`, 'success');
+        return;
       }
 
-      // 3. Susun objek session menggunakan roleAplikasi yang sudah VALID
-      const session: UserSession = {
-        username: user.username,
-        role: roleAplikasi, 
-        name: user.name || user.username,
-        id: String(user.id)
-      };
-
-      // 4. Jalankan fungsi sukses login
-      onLoginSuccess(session);
-      addToast(`Selamat datang kembali, ${session.name}!`, 'success');
+      // 3. Jika di kedua tabel tidak ditemukan data yang cocok
+      setError('Username atau Password salah atau tidak terdaftar.');
+      addToast('Login gagal, periksa kembali kredensial Anda.', 'error');
 
     } catch (err) {
-      setError('Terjadi kesalahan jaringan atau sistem database.');
+      setError('Terjadi kesalahan koneksi sistem database.');
       addToast('Gagal terhubung ke Supabase.', 'error');
     } finally {
       setIsLoading(false);
@@ -98,12 +120,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
               <GraduationCap className="w-9 h-9 text-accent-amber" />
             </div>
             <h1 className="text-2xl font-bold text-navy-dark tracking-tight">MI AL-MANAR</h1>
-            <p className="text-xs text-slate-500 text-center mt-1">Portal Digital AL-MANAR</p>
+            <p className="text-xs text-slate-500 text-center mt-1">Portal Digital Terintegrasi (Multi-Role Mode)</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wider">Username</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wider">Username / NIS</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <User className="w-4 h-4" />
@@ -113,7 +135,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={isLoading}
-                  placeholder="Masukkan username"
+                  placeholder="Masukkan username atau NIS"
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition-all duration-200"
                 />
               </div>
@@ -161,7 +183,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span>Menghubungkan...</span>
+                  <span>Membuka Akses Portal...</span>
                 </>
               ) : (
                 <>
