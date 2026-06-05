@@ -6,7 +6,15 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, User, GraduationCap, ArrowRight } from 'lucide-react';
 import { UserSession } from '../types';
-import { ToastMessage } from './Notification';
+// 1. Kita import fungsi createClient resmi dari Supabase library
+import { createClient } from '@supabase/supabase-js';
+
+// 2. Inisialisasi koneksi langsung menggunakan URL proyek Supabase kamu yang ada di foto pertama
+const supabaseUrl = 'https://qcrgbzpihvjdopuawprn.supabase.co';
+// Salin anon key/Project API key Supabase kamu di bawah ini
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjcmdienBpaHZqdmRvcHVhd3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODkxMDAsImV4cCI6MjA5NjE2NTEwMH0._ctMHZWlBifDxW2BvIWFHqVk7gfP0YbC2D3ggEZyod8'; 
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface LoginPageProps {
   onLoginSuccess: (session: UserSession) => void;
@@ -20,11 +28,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!username.trim() || !password.trim()) {
+    const uInput = username.trim();
+    const pInput = password.trim();
+
+    if (!uInput || !pInput) {
       setError('Username dan Password wajib diisi.');
       addToast('Harap lengkapi form login!', 'error');
       return;
@@ -32,56 +43,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
 
     setIsLoading(true);
 
-    // Simulate network delay for premium look & feel
-    setTimeout(() => {
-      const uLower = username.trim().toLowerCase();
-      const p = password;
+    try {
+      // 3. Kueri langsung membaca tabel public.users di Supabase kamu
+      const { data: user, error: supabaseError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', uInput)
+        .eq('password', pInput)
+        .single();
 
-      if (uLower === 'admin' && p === 'admin123') {
-        const session: UserSession = {
-          username: 'admin',
-          role: 'admin',
-          name: 'Administrator Akademik',
-          id: 'admin'
-        };
-        onLoginSuccess(session);
-        addToast('Login sukses sebagai Admin!', 'success');
-      } else if (uLower === 'guru1' && p === 'guru123') {
-        const session: UserSession = {
-          username: 'guru1',
-          role: 'guru',
-          name: 'Bpk. Hendra, S.Pd.',
-          id: 'g1',
-          extra: 'Matematika, Fisika'
-        };
-        onLoginSuccess(session);
-        addToast('Selamat datang, Bpk. Hendra!', 'success');
-      } else if (uLower === 'siswa1' && p === 'siswa123') {
-        const session: UserSession = {
-          username: 'siswa1',
-          role: 'siswa',
-          name: 'Andi Pratama',
-          id: '12345',
-          extra: '10A'
-        };
-        onLoginSuccess(session);
-        addToast('Selamat datang kembali, Andi!', 'success');
-      } else if (uLower === 'ortu1' && p === 'ortu123') {
-        const session: UserSession = {
-          username: 'ortu1',
-          role: 'ortu',
-          name: 'Bpk. / Ibu Andi Pratama',
-          id: '12345',
-          extra: 'Andi Pratama'
-        };
-        onLoginSuccess(session);
-        addToast('Login sukses sebagai Wali Murid!', 'success');
-      } else {
+      if (supabaseError || !user) {
         setError('Username atau Password yang Anda masukkan salah.');
         addToast('Login gagal, periksa kredensial Anda.', 'error');
         setIsLoading(false);
+        return;
       }
-    }, 900);
+
+      // 4. Set session login dinamis berdasarkan data asli dari Supabase
+      const session: UserSession = {
+        username: user.username,
+        role: user.role, // otomatis membaca 'admin', 'teacher', atau 'kepsek'
+        name: user.name || user.username,
+        id: user.id
+      };
+
+      onLoginSuccess(session);
+      addToast(`Selamat datang kembali, ${session.name}!`, 'success');
+
+    } catch (err) {
+      setError('Terjadi kesalahan jaringan atau sistem database.');
+      addToast('Gagal terhubung ke Supabase.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleShortcutLogin = (u: string, p: string) => {
@@ -91,7 +85,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-navy via-navy-dark to-slate-900 p-4 relative overflow-hidden">
-      {/* Visual Accents */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-navy-light/10 blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-accent-amber/5 blur-3xl pointer-events-none" />
 
@@ -177,45 +170,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
               )}
             </button>
           </form>
-
-          {/* Quick Logins (Predefined data) */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center mb-3">Akun Demo Cepat</span>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleShortcutLogin('admin', 'admin123')}
-                className="p-2 border border-slate-100 rounded-xl text-left bg-slate-50 hover:bg-slate-100 transition-colors text-slate-700 cursor-pointer"
-              >
-                <div className="font-semibold text-navy">Admin</div>
-                <div className="text-[10px] text-slate-500">admin / admin123</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleShortcutLogin('guru1', 'guru123')}
-                className="p-2 border border-slate-100 rounded-xl text-left bg-slate-50 hover:bg-slate-100 transition-colors text-slate-700 cursor-pointer"
-              >
-                <div className="font-semibold text-emerald-700">Guru (Bpk. Hendra)</div>
-                <div className="text-[10px] text-slate-500">guru1 / guru123</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleShortcutLogin('siswa1', 'siswa123')}
-                className="p-2 border border-slate-100 rounded-xl text-left bg-slate-50 hover:bg-slate-100 transition-colors text-slate-700 cursor-pointer"
-              >
-                <div className="font-semibold text-indigo-700">Siswa (Andi)</div>
-                <div className="text-[10px] text-slate-500">siswa1 / siswa123</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleShortcutLogin('ortu1', 'ortu123')}
-                className="p-2 border border-slate-100 rounded-xl text-left bg-slate-50 hover:bg-slate-100 transition-colors text-slate-700 cursor-pointer"
-              >
-                <div className="font-semibold text-amber-700">Orang Tua (Andi)</div>
-                <div className="text-[10px] text-slate-500">ortu1 / ortu123</div>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
