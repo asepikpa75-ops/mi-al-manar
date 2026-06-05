@@ -9,7 +9,7 @@ import { UserSession } from '../types';
 import { createClient } from '@supabase/supabase-js';
 
 // Inisialisasi koneksi Supabase resmi tanpa typo
-const supabaseUrl = 'https://qcrgbzpihvjdopuawpn.supabase.co';
+const supabaseUrl = 'https://qcrgbzpihvjvdopuawpn.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjcmdienBpaHZqdmRvcHVhd3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODkxMDAsImV4cCI6MjA5NjE2NTEwMH0._ctMHZWlBifDxW2BvIWFHqVk7gfP0YbC2D3ggEZyod8'; 
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
