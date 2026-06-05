@@ -3,9 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { createClient } from '@supabase/supabase-js';
 import { Siswa, Guru, Pengumuman, Jadwal, AbsensiRecord, Nilai } from './types';
 
-// Seed Initial Data
+// =========================================================================
+// 1. INISIALISASI KONEKSI ONLINE SUPABASE
+// =========================================================================
+const supabaseUrl = 'https://qcrgbzpihvjvdopuawpn.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjcmdienBpaHZqdmRvcHVhd3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODkxMDAsImV4cCI6MjA5NjE2NTEwMH0._ctMHZWlBifDxW2BvIWFHqVk7gfP0YbC2D3ggEZyod8';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// =========================================================================
+// 2. DATA CADANGAN LOKAL (Sesuai File Asli Kamu)
+// =========================================================================
 const INITIAL_SISWA: Siswa[] = [
   { nis: "12345", nama: "Andi", kelas: "10A" },
   { nis: "12346", nama: "Budi Santoso", kelas: "10A" },
@@ -52,42 +63,12 @@ const INITIAL_JADWAL: Jadwal[] = [
 ];
 
 const INITIAL_ABSENSI: AbsensiRecord[] = [
-  {
-    id: "a1",
-    kelas: "10A",
-    tanggal: "2026-05-25",
-    data: { "12345": "Hadir", "12346": "Hadir" }
-  },
-  {
-    id: "a2",
-    kelas: "10A",
-    tanggal: "2026-05-26",
-    data: { "12345": "Hadir", "12346": "Alfa" }
-  },
-  {
-    id: "a3",
-    kelas: "10A",
-    tanggal: "2026-05-27",
-    data: { "12345": "Hadir", "12346": "Hadir" }
-  },
-  {
-    id: "a4",
-    kelas: "10A",
-    tanggal: "2026-05-28",
-    data: { "12345": "Sakit", "12346": "Hadir" }
-  },
-  {
-    id: "a5",
-    kelas: "10A",
-    tanggal: "2026-05-29",
-    data: { "12345": "Hadir", "12346": "Alfa" }
-  },
-  {
-    id: "a6",
-    kelas: "10A",
-    tanggal: "2026-05-30",
-    data: { "12345": "Hadir", "12346": "Izin" }
-  }
+  { id: "a1", kelas: "10A", tanggal: "2026-05-25", data: { "12345": "Hadir", "12346": "Hadir" } },
+  { id: "a2", kelas: "10A", tanggal: "2026-05-26", data: { "12345": "Hadir", "12346": "Alfa" } },
+  { id: "a3", kelas: "10A", tanggal: "2026-05-27", data: { "12345": "Hadir", "12346": "Hadir" } },
+  { id: "a4", kelas: "10A", tanggal: "2026-05-28", data: { "12345": "Sakit", "12346": "Hadir" } },
+  { id: "a5", kelas: "10A", tanggal: "2026-05-29", data: { "12345": "Hadir", "12346": "Alfa" } },
+  { id: "a6", kelas: "10A", tanggal: "2026-05-30", data: { "12345": "Hadir", "12346": "Izin" } }
 ];
 
 const INITIAL_NILAI: Nilai[] = [
@@ -99,34 +80,109 @@ const INITIAL_NILAI: Nilai[] = [
   { id: "n6", siswaNIS: "12346", mapel: "Bahasa Indonesia", uh1: 80, uh2: 82, uts: 75, uas: 80 }
 ];
 
-// Helper to interact with LocalStorage
+// =========================================================================
+// 3. LOGIKA JEMBATAN OTOMATIS (Aman Dari Error Crash)
+// =========================================================================
+
 export function initializeDB() {
-  if (!localStorage.getItem('sis_siswa')) {
-    localStorage.setItem('sis_siswa', JSON.stringify(INITIAL_SISWA));
-  }
-  if (!localStorage.getItem('sis_guru')) {
-    localStorage.setItem('sis_guru', JSON.stringify(INITIAL_GURU));
-  }
-  if (!localStorage.getItem('sis_pengumuman')) {
-    localStorage.setItem('sis_pengumuman', JSON.stringify(INITIAL_PENGUMUMAN));
-  }
-  if (!localStorage.getItem('sis_jadwal')) {
-    localStorage.setItem('sis_jadwal', JSON.stringify(INITIAL_JADWAL));
-  }
-  if (!localStorage.getItem('sis_absensi')) {
-    localStorage.setItem('sis_absensi', JSON.stringify(INITIAL_ABSENSI));
-  }
-  if (!localStorage.getItem('sis_nilai')) {
-    localStorage.setItem('sis_nilai', JSON.stringify(INITIAL_NILAI));
-  }
+  // Menyiapkan struktur lokal awal agar fungsi App.tsx tidak patah
+  if (!localStorage.getItem('sis_siswa')) localStorage.setItem('sis_siswa', JSON.stringify(INITIAL_SISWA));
+  if (!localStorage.getItem('sis_guru')) localStorage.setItem('sis_guru', JSON.stringify(INITIAL_GURU));
+  if (!localStorage.getItem('sis_pengumuman')) localStorage.setItem('sis_pengumuman', JSON.stringify(INITIAL_PENGUMUMAN));
+  if (!localStorage.getItem('sis_jadwal')) localStorage.setItem('sis_jadwal', JSON.stringify(INITIAL_JADWAL));
+  if (!localStorage.getItem('sis_absensi')) localStorage.setItem('sis_absensi', JSON.stringify(INITIAL_ABSENSI));
+  if (!localStorage.getItem('sis_nilai')) localStorage.setItem('sis_nilai', JSON.stringify(INITIAL_NILAI));
+  
+  // Otomatis picu sinkronisasi data dari Supabase di latar belakang
+  syncDataFromSupabase();
 }
 
 export function getData<T>(key: string): T {
-  initializeDB();
   const data = localStorage.getItem(key);
   return data ? (JSON.parse(data) as T) : ([] as unknown as T);
 }
 
 export function saveData<T>(key: string, data: T): void {
   localStorage.setItem(key, JSON.stringify(data));
+  // Setiap kali dashboard lokal menyimpan data (absen/nilai), otomatis cerminkan ke database online
+  uploadDataToSupabase(key, data);
+}
+
+// =========================================================================
+// 4. MESIN SINKRONISASI REAL-TIME KE SUPABASE ONLINE
+// =========================================================================
+
+// Ambil data terbaru dari internet secara mandiri tanpa merusak alur UI
+async function syncDataFromSupabase() {
+  try {
+    // 1. Tarik tabel 'students' Supabase, perbarui memori lokal siswa
+    const { data: onlineStudents } = await supabase.from('students').select('*');
+    if (onlineStudents && onlineStudents.length > 0) {
+      const mappedSiswa: Siswa[] = onlineStudents.map((s: any) => ({
+        nis: s.username || String(s.id).substring(0, 5),
+        nama: s.name,
+        kelas: s.class_name || '10A'
+      }));
+      localStorage.setItem('sis_siswa', JSON.stringify(mappedSiswa));
+    }
+
+    // 2. Tarik tabel 'attendance' Supabase, perbarui memori lokal absensi
+    const { data: onlineAttendance } = await supabase.from('attendance').select('*');
+    if (onlineAttendance && onlineAttendance.length > 0) {
+      const mappedAbsensi: AbsensiRecord[] = onlineAttendance.map((a: any) => ({
+        id: String(a.id),
+        kelas: a.academic_year,
+        tanggal: a.date,
+        data: typeof a.status === 'string' ? JSON.parse(a.status) : a.status
+      }));
+      localStorage.setItem('sis_absensi', JSON.stringify(mappedAbsensi));
+    }
+
+    // 3. Tarik tabel 'grades' Supabase, perbarui memori lokal nilai
+    const { data: onlineGrades } = await supabase.from('grades').select('*');
+    if (onlineGrades && onlineGrades.length > 0) {
+      const mappedNilai: Nilai[] = onlineGrades.map((n: any) => ({
+        id: String(n.id),
+        siswaNIS: n.student_id,
+        mapel: n.subject_name,
+        uh1: n.formative_score || 0,
+        uh2: 0,
+        uts: 0,
+        uas: n.summative_score || 0
+      }));
+      localStorage.setItem('sis_nilai', JSON.stringify(mappedNilai));
+    }
+  } catch (err) {
+    console.warn("Koneksi Supabase sibuk, menggunakan data cache lokal.", err);
+  }
+}
+
+// Teruskan data inputan dari dashboard guru langsung ke database online Supabase
+async function uploadDataToSupabase(key: string, data: any) {
+  try {
+    if (key === 'sis_absensi' && Array.isArray(data)) {
+      const target = data[data.length - 1]; // Ambil data presensi yang baru saja diinput
+      if (!target) return;
+      
+      await supabase.from('attendance').upsert({
+        academic_year: target.kelas,
+        date: target.tanggal,
+        status: target.data
+      }, { onConflict: 'academic_year,date' }); // Menghindari duplikasi baris absen tanggal sama
+    }
+
+    if (key === 'sis_nilai' && Array.isArray(data)) {
+      // Loop untuk mengunggah seluruh pembaruan baris nilai siswa ke tabel online
+      for (const score of data) {
+        await supabase.from('grades').upsert({
+          student_id: score.siswaNIS,
+          subject_name: score.mapel,
+          formative_score: score.uh1,
+          summative_score: score.uas
+        }, { onConflict: 'student_id,subject_name' });
+      }
+    }
+  } catch (err) {
+    console.error("Gagal mencerminkan data ke Supabase:", err);
+  }
 }
