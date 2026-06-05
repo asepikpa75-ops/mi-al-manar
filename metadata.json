@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Informasi Sekolah",
+  "description": "Sistem Informasi Sekolah (SIS) mandiri berbasis localStorage untuk Admin, Guru, Siswa, dan Orang Tua.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
