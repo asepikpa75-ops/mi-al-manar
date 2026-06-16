@@ -275,7 +275,11 @@ export default function App() {
             <div className="w-full bg-navy-dark/40 rounded-xl p-3 border border-white/5 space-y-1">
               <span className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold block">PENGGUNA AKTIF</span>
               <div className="text-xs font-bold text-white leading-tight truncate">{session.name}</div>
-              <div className="text-[10px] text-accent-amber font-bold mt-1 uppercase">{session.role}</div>
+              <div className="text-[10px] text-accent-amber font-bold mt-1 uppercase">
+                {session.role === 'guru' 
+                  ? ((guruList.find(g => g.username === session.username || g.nama === session.name) as any)?.role === 'teacher_mapel' ? 'GURU MAPEL' : 'WALI KELAS') 
+                  : session.role}
+              </div>
             </div>
 
             {/* Visual aesthetic spacer illustration */}
@@ -333,7 +337,9 @@ export default function App() {
             {/* Profile pill indicators */}
             <div className="flex items-center gap-3">
               <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wider ${getRoleBadgeClasses(session.role)}`}>
-                {getRoleLabelDisplay(session.role)}
+                {session.role === 'guru' 
+                  ? ((guruList.find(g => g.username === session.username || g.nama === session.name) as any)?.role === 'teacher_mapel' ? 'GURU MAPEL' : 'WALI KELAS') 
+                  : getRoleLabelDisplay(session.role)}
               </span>
 
               <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
