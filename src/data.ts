@@ -84,7 +84,7 @@ export function saveData<T>(key: string, data: T): void {
 }
 
 // =========================================================================
-// 4. MESIN SINKRONISASI REAL-TIME KE SUPABASE ONLINE (VERSI UPGRADE JOIN)
+// 4. MESIN SINKRONISASI ONLINE SUPABASE
 // =========================================================================
 
 async function syncDataFromSupabase() {
@@ -100,30 +100,57 @@ async function syncDataFromSupabase() {
       localStorage.setItem('sis_siswa', JSON.stringify(mappedSiswa));
     }
 
-    // 2. Solusi Jitu: Ambil Jadwal langsung gabung (Join) dengan Nama Guru dari tabel users
-    const { data: onlineAssignments } = await supabase
-      .from('subject_assignments')
-      .select('*, users(name)');
+    // 2. Ambil Jadwal Mengajar Guru Beserta Inputan Hari & Jam Kustom
+    const { data: onlineAssignments } = await supabase.from('subject_assignments').select('*');
+    const { data: onlineUsers } = await supabase.from('users').select('*');
+
+    const activeSessionStr = localStorage.getItem('sis_active_session');
+    let activeTeacherId = '';
+    let activeTeacherName = '';
+    if (activeSessionStr) {
+      try {
+        const session = JSON.parse(activeSessionStr);
+        activeTeacherId = String(session.id || '');
+        activeTeacherName = String(session.name || '');
+      } catch (e) {}
+    }
 
     if (onlineAssignments && onlineAssignments.length > 0) {
       const mappedJadwal: Jadwal[] = [];
-      const days = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
-      const times = ["07:30 - 09:00", "09:15 - 10:45", "11:00 - 12:30"];
+      
+      // Data cadangan jika user lupa mengisi kolom hari/jam di Supabase
+      const defaultDays = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
+      const defaultTimes = ["07:30 - 09:00", "09:15 - 10:45", "11:00 - 12:30"];
 
       onlineAssignments.forEach((assignment: any) => {
-        const teacherName = assignment.users?.name || 'Guru Pengajar';
         const targetClass = assignment.class_id ? String(assignment.class_id).toUpperCase().trim() : '1A';
+        
+        let teacherName = '';
+        if (activeTeacherId && String(assignment.teacher_id) === activeTeacherId) {
+          teacherName = activeTeacherName;
+        } else {
+          const teacher = onlineUsers?.find((u: any) => String(u.id) === String(assignment.teacher_id));
+          teacherName = teacher ? teacher.name : 'Guru Pengajar';
+        }
+
+        // Pecah data berdasarkan tanda koma untuk mendukung penginputan massal maupun satuan
         const subjects = String(assignment.subject_name).split(',');
+        const customDays = assignment.hari ? String(assignment.hari).split(',') : [];
+        const customTimes = assignment.jam ? String(assignment.jam).split(',') : [];
         
         subjects.forEach((subject: string, idx: number) => {
           const cleanSubject = subject.trim();
           if (!cleanSubject) return;
 
+          // Ambil nilai dari Supabase sesuai urutan index, jika kosong gunakan data cadangan
+          const finalHari = customDays[idx] ? customDays[idx].trim() : (customDays[0] ? customDays[0].trim() : defaultDays[idx % defaultDays.length]);
+          const finalJam = customTimes[idx] ? customTimes[idx].trim() : (customTimes[0] ? customTimes[0].trim() : defaultTimes[idx % defaultTimes.length]);
+
           mappedJadwal.push({
             id: `${assignment.id}-${idx}`,
             kelas: targetClass,
-            hari: days[idx % days.length],
-            jam: times[idx % times.length],
+            hari: finalHari,
+            jam: finalJam,
             mapel: cleanSubject,
             guru: teacherName,
             ruangan: `Ruang ${targetClass}`
