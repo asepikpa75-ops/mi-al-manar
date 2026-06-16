@@ -85,7 +85,6 @@ const INITIAL_NILAI: Nilai[] = [
 // =========================================================================
 
 export function initializeDB() {
-  // Menyiapkan struktur lokal awal agar fungsi App.tsx tidak patah
   if (!localStorage.getItem('sis_siswa')) localStorage.setItem('sis_siswa', JSON.stringify(INITIAL_SISWA));
   if (!localStorage.getItem('sis_guru')) localStorage.setItem('sis_guru', JSON.stringify(INITIAL_GURU));
   if (!localStorage.getItem('sis_pengumuman')) localStorage.setItem('sis_pengumuman', JSON.stringify(INITIAL_PENGUMUMAN));
@@ -93,7 +92,6 @@ export function initializeDB() {
   if (!localStorage.getItem('sis_absensi')) localStorage.setItem('sis_absensi', JSON.stringify(INITIAL_ABSENSI));
   if (!localStorage.getItem('sis_nilai')) localStorage.setItem('sis_nilai', JSON.stringify(INITIAL_NILAI));
   
-  // Otomatis picu sinkronisasi data dari Supabase di latar belakang
   syncDataFromSupabase();
 }
 
@@ -104,7 +102,6 @@ export function getData<T>(key: string): T {
 
 export function saveData<T>(key: string, data: T): void {
   localStorage.setItem(key, JSON.stringify(data));
-  // Setiap kali dashboard lokal menyimpan data (absen/nilai), otomatis cerminkan ke database online
   uploadDataToSupabase(key, data);
 }
 
@@ -112,24 +109,21 @@ export function saveData<T>(key: string, data: T): void {
 // 4. MESIN SINKRONISASI REAL-TIME KE SUPABASE ONLINE
 // =========================================================================
 
-// Ambil data terbaru dari internet secara mandiri tanpa merusak alur UI
 async function syncDataFromSupabase() {
   try {
-    // 1. Tarik tabel 'students' Supabase, sesuaikan class_id menjadi kelas teks
     const { data: onlineStudents } = await supabase.from('students').select('*');
     if (onlineStudents && onlineStudents.length > 0) {
       const mappedSiswa: Siswa[] = onlineStudents.map((s: any) => {
-        // Logika konversi otomatis: Jika class_id berisi penanda, sesuaikan ke format kelas aplikasi
         let namaKelas = '10A'; 
         if (s.class_id && String(s.class_id).toLowerCase().includes('b')) {
           namaKelas = '10B';
         } else if (s.class_id) {
-          // Jika class_id berisi teks/angka biasa, gunakan langsung sebagai nama kelas
           namaKelas = String(s.class_id);
         }
 
         return {
-          nis: s.username || String(s.id).substring(0, 5),
+          // Solusi Tepat Sasaran: Gunakan s.id (UUID penuh) agar klop dengan session ID dashboard
+          nis: String(s.id), 
           nama: s.name,
           kelas: namaKelas
         };
@@ -137,7 +131,6 @@ async function syncDataFromSupabase() {
       localStorage.setItem('sis_siswa', JSON.stringify(mappedSiswa));
     }
 
-    // 2. Tarik tabel 'attendance' Supabase, perbarui memori lokal absensi
     const { data: onlineAttendance } = await supabase.from('attendance').select('*');
     if (onlineAttendance && onlineAttendance.length > 0) {
       const mappedAbsensi: AbsensiRecord[] = onlineAttendance.map((a: any) => ({
@@ -149,7 +142,6 @@ async function syncDataFromSupabase() {
       localStorage.setItem('sis_absensi', JSON.stringify(mappedAbsensi));
     }
 
-    // 3. Tarik tabel 'grades' Supabase, perbarui memori lokal nilai
     const { data: onlineGrades } = await supabase.from('grades').select('*');
     if (onlineGrades && onlineGrades.length > 0) {
       const mappedNilai: Nilai[] = onlineGrades.map((n: any) => ({
@@ -168,22 +160,20 @@ async function syncDataFromSupabase() {
   }
 }
 
-// Teruskan data inputan dari dashboard guru langsung ke database online Supabase
 async function uploadDataToSupabase(key: string, data: any) {
   try {
     if (key === 'sis_absensi' && Array.isArray(data)) {
-      const target = data[data.length - 1]; // Ambil data presensi yang baru saja diinput
+      const target = data[data.length - 1];
       if (!target) return;
       
       await supabase.from('attendance').upsert({
         academic_year: target.kelas,
         date: target.tanggal,
         status: target.data
-      }, { onConflict: 'academic_year,date' }); // Menghindari duplikasi baris absen tanggal sama
+      }, { onConflict: 'academic_year,date' });
     }
 
     if (key === 'sis_nilai' && Array.isArray(data)) {
-      // Loop untuk mengunggah seluruh pembaruan baris nilai siswa ke tabel online
       for (const score of data) {
         await supabase.from('grades').upsert({
           student_id: score.siswaNIS,
