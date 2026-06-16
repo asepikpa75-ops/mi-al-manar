@@ -41,24 +41,38 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'jadwal' | 'absensi' | 'nilai' | 'rekap'>('jadwal');
 
-  // Input states for Attendance (Absensi)
-  const [selectedAbsensiClass, setSelectedAbsensiClass] = useState('10A');
+  // Deteksi sub-role Guru secara mandiri dari cache lokal database
+  const isWaliKelas = (() => {
+    try {
+      const savedGurus = localStorage.getItem('sis_guru');
+      if (!savedGurus) return true; // Fallback aman jika data belum ter-load
+      const guruData = JSON.parse(savedGurus);
+      const currentGuruRecord = guruData.find(
+        (g: any) => g.nama.toLowerCase() === currentTeacherName.toLowerCase()
+      );
+      return currentGuruRecord?.role !== 'teacher_mapel';
+    } catch (e) {
+      return true;
+    }
+  })();
+
+  // Input states for Attendance (Absensi) - Disesuaikan ke format MI kelas 1A
+  const [selectedAbsensiClass, setSelectedAbsensiClass] = useState('1A');
   const [selectedAbsensiDate, setSelectedAbsensiDate] = useState(new Date().toISOString().split('T')[0]);
   const [tempAbsensiData, setTempAbsensiData] = useState<{ [nis: string]: 'Hadir' | 'Izin' | 'Sakit' | 'Alfa' }>({});
 
-  // Input states for Grades (Nilai)
-  const [selectedNilaiClass, setSelectedNilaiClass] = useState('10A');
+  // Input states for Grades (Nilai) - Disesuaikan ke format MI kelas 1A
+  const [selectedNilaiClass, setSelectedNilaiClass] = useState('1A');
   const [selectedNilaiSubject, setSelectedNilaiSubject] = useState('Matematika');
   const [tempNilaiData, setTempNilaiData] = useState<{
     [nis: string]: { uh1: number; uh2: number; uts: number; uas: number };
   }>({});
 
   // Stats for Rekap Absensi Class Filter
-  const [rekapClass, setRekapClass] = useState('10A');
+  const [rekapClass, setRekapClass] = useState('1A');
 
   // 1. FILTER TEACHER'S INDIVIDUAL SCHEDULE
   const teacherSchedules = jadwalList.filter((j) => {
-    // Tolerant comparison for teacher name
     return j.guru.toLowerCase().includes(currentTeacherName.toLowerCase()) || 
            currentTeacherName.toLowerCase().includes(j.guru.toLowerCase());
   });
@@ -66,7 +80,6 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   // 2. ABSENSI ACTIONS
   const classStudents = siswaList.filter((s) => s.kelas === selectedAbsensiClass);
 
-  // Initialize/Load attendance status for the selected Date & Class
   const loadExistingAbsensi = () => {
     const existing = absensiList.find(
       (a) => a.kelas === selectedAbsensiClass && a.tanggal === selectedAbsensiDate
@@ -193,11 +206,14 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   return (
     <div className="space-y-6">
       {/* Page Title & Navigation Tabs for Teacher Sections */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl shadow-xs border border-slate-100 animate-slide-in">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 animate-slide-in">
         <div>
           <h2 className="text-xl font-bold text-navy-dark">Dashboard Pendidik</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Masuk sebagai: <span className="font-bold text-navy">{currentTeacherName}</span> (Matematika & Fisika)
+            Masuk sebagai: <span className="font-bold text-navy">{currentTeacherName}</span> &nbsp;•&nbsp; 
+            <span className={`ml-1 px-2 py-0.5 rounded text-[10px] font-bold ${isWaliKelas ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+              {isWaliKelas ? 'WALI KELAS' : 'GURU MAPEL'}
+            </span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
@@ -209,14 +225,19 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
           >
             Jadwal Mengajar
           </button>
-          <button
-            onClick={() => setActiveTab('absensi')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200 ${
-              activeTab === 'absensi' ? 'bg-navy text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Input Absensi Harian
-          </button>
+          
+          {/* PROTEKSI TAB INTERSTISIAL: Tombol ini hanya dirender jika statusnya Wali Kelas */}
+          {isWaliKelas && (
+            <button
+              onClick={() => setActiveTab('absensi')}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                activeTab === 'absensi' ? 'bg-navy text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Input Absensi Harian
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab('nilai')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200 ${
@@ -225,14 +246,18 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
           >
             Kelola Nilai Rapor
           </button>
-          <button
-            onClick={() => setActiveTab('rekap')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200 ${
-              activeTab === 'rekap' ? 'bg-navy text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Rekap Kehadiran Siswa
-          </button>
+
+          {/* PROTEKSI TAB INTERSTISIAL: Rekap kehadiran harian hanya milik Wali Kelas */}
+          {isWaliKelas && (
+            <button
+              onClick={() => setActiveTab('rekap')}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                activeTab === 'rekap' ? 'bg-navy text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Rekap Kehadiran Siswa
+            </button>
+          )}
         </div>
       </div>
 
@@ -294,10 +319,9 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
         </div>
       )}
 
-      {/* RENDER INPUT ABSENSI */}
-      {activeTab === 'absensi' && (
+      {/* RENDER INPUT ABSENSI (HANYA UNTUK WALI KELAS) */}
+      {activeTab === 'absensi' && isWaliKelas && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-fade-scale">
-          {/* Settings Section */}
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h3 className="text-sm font-bold text-navy-dark flex items-center gap-2">
@@ -312,9 +336,10 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
                 onChange={(e) => setSelectedAbsensiClass(e.target.value)}
                 className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none"
               >
-                <option value="10A">Kelas 10A</option>
-                <option value="10B">Kelas 10B</option>
-                <option value="11A">Kelas 11A</option>
+                <option value="1A">Kelas 1A</option>
+                <option value="1B">Kelas 1B</option>
+                <option value="2A">Kelas 2A</option>
+                <option value="3A">Kelas 3A</option>
               </select>
               <input
                 type="date"
@@ -332,7 +357,6 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
             </div>
           </div>
 
-          {/* Student Grid Checklist */}
           <div className="p-6 divide-y divide-slate-100">
             {classStudents.length === 0 ? (
               <div className="text-center p-6 text-slate-400 text-xs">Belum ada murid di kelas yang terpilih.</div>
@@ -353,7 +377,6 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
                       </div>
                     </div>
 
-                    {/* Interactive Presensi Switchers */}
                     <div className="flex gap-1">
                       {(['Hadir', 'Izin', 'Sakit', 'Alfa'] as const).map((status) => {
                         const isSelected = currentStatus === status;
@@ -390,7 +413,6 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
             )}
           </div>
 
-          {/* Action Footer Button */}
           {Object.keys(tempAbsensiData).length > 0 && (
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
               <button
@@ -406,10 +428,9 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
         </div>
       )}
 
-      {/* RENDER INPUT NILAI */}
+      {/* RENDER INPUT NILAI (TERBUKA UNTUK KEDUA ROLE) */}
       {activeTab === 'nilai' && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-fade-scale">
-          {/* Settings Section */}
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h3 className="text-sm font-bold text-navy-dark flex items-center gap-2">
@@ -424,8 +445,9 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
                 onChange={(e) => setSelectedNilaiClass(e.target.value)}
                 className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none"
               >
-                <option value="10A">Kelas 10A</option>
-                <option value="10B">Kelas 10B</option>
+                <option value="1A">Kelas 1A</option>
+                <option value="1B">Kelas 1B</option>
+                <option value="2A">Kelas 2A</option>
               </select>
               <select
                 value={selectedNilaiSubject}
@@ -434,13 +456,14 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
               >
                 <option value="Matematika">Matematika</option>
                 <option value="Fisika">Fisika</option>
+                <option value="Bahasa Arab">Bahasa Arab</option>
               </select>
               <button
                 type="button"
                 onClick={loadExistingGrades}
                 className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 font-semibold text-xs rounded-xl cursor-pointer transition"
               >
-                Buka Absensi Nilai
+                Buka Lembar Nilai
               </button>
             </div>
           </div>
@@ -465,7 +488,7 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
                   </tr>
                 ) : Object.keys(tempNilaiData).length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-500 font-medium">Klik tombol "Buka Absensi Nilai" di atas demi mengisi nilai kelas ini.</td>
+                    <td colSpan={7} className="p-8 text-center text-slate-500 font-medium">Klik tombol "Buka Lembar Nilai" di atas demi mengisi nilai kelas ini.</td>
                   </tr>
                 ) : (
                   gradeStudents.map((student) => {
@@ -547,7 +570,6 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
             </table>
           </div>
 
-          {/* Save Action Footer */}
           {Object.keys(tempNilaiData).length > 0 && (
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
               <button
@@ -563,10 +585,9 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
         </div>
       )}
 
-      {/* RENDER REKAP ABSENSI */}
-      {activeTab === 'rekap' && (
+      {/* RENDER REKAP ABSENSI (HANYA UNTUK WALI KELAS) */}
+      {activeTab === 'rekap' && isWaliKelas && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-fade-scale">
-          {/* Header */}
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="text-sm font-bold text-navy-dark flex items-center gap-2">
@@ -581,9 +602,9 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
                 onChange={(e) => setRekapClass(e.target.value)}
                 className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none"
               >
-                <option value="10A">Kelas 10A</option>
-                <option value="10B">Kelas 10B</option>
-                <option value="11A">Kelas 11A</option>
+                <option value="1A">Kelas 1A</option>
+                <option value="1B">Kelas 1B</option>
+                <option value="2A">Kelas 2A</option>
               </select>
             </div>
           </div>
@@ -605,7 +626,7 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {rekapStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-400">Tidak ada siswa terdaftar di kelas in.</td>
+                    <td colSpan={8} className="p-6 text-center text-slate-400">Tidak ada siswa terdaftar di kelas ini.</td>
                   </tr>
                 ) : (
                   rekapStudents.map((student) => {
@@ -632,7 +653,7 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
                               PERLU PERHATIAN
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded text-[10px] font-bold animate-pulse">
+                            <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
                               AMAN
                             </span>
                           )}
