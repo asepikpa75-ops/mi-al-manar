@@ -89,7 +89,21 @@ export function saveData<T>(key: string, data: T): void {
 
 async function syncDataFromSupabase() {
   try {
-    // 1. Ambil Data Siswa
+    // 1. Ambil Data Akun Guru / Users (Termasuk Username, Password, & Role Asli Supabase)
+    const { data: onlineUsers } = await supabase.from('users').select('*');
+    if (onlineUsers && onlineUsers.length > 0) {
+      const mappedGuru = onlineUsers.map((u: any) => ({
+        id: String(u.id),
+        nama: u.name,
+        username: u.username,
+        pass: u.password,
+        role: u.role || 'teacher', // Menyimpan role 'teacher' atau 'teacher_mapel' ke lokal
+        mapel: ""
+      }));
+      localStorage.setItem('sis_guru', JSON.stringify(mappedGuru));
+    }
+
+    // 2. Ambil Data Siswa
     const { data: onlineStudents } = await supabase.from('students').select('*');
     if (onlineStudents && onlineStudents.length > 0) {
       const mappedSiswa: Siswa[] = onlineStudents.map((s: any) => ({
@@ -100,9 +114,8 @@ async function syncDataFromSupabase() {
       localStorage.setItem('sis_siswa', JSON.stringify(mappedSiswa));
     }
 
-    // 2. Ambil Jadwal Mengajar Guru Beserta Inputan Hari & Jam Kustom
+    // 3. Ambil Jadwal Mengajar Guru Beserta Inputan Hari & Jam Kustom
     const { data: onlineAssignments } = await supabase.from('subject_assignments').select('*');
-    const { data: onlineUsers } = await supabase.from('users').select('*');
 
     const activeSessionStr = localStorage.getItem('sis_active_session');
     let activeTeacherId = '';
@@ -117,8 +130,6 @@ async function syncDataFromSupabase() {
 
     if (onlineAssignments && onlineAssignments.length > 0) {
       const mappedJadwal: Jadwal[] = [];
-      
-      // Data cadangan jika user lupa mengisi kolom hari/jam di Supabase
       const defaultDays = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
       const defaultTimes = ["07:30 - 09:00", "09:15 - 10:45", "11:00 - 12:30"];
 
@@ -133,7 +144,6 @@ async function syncDataFromSupabase() {
           teacherName = teacher ? teacher.name : 'Guru Pengajar';
         }
 
-        // Pecah data berdasarkan tanda koma untuk mendukung penginputan massal maupun satuan
         const subjects = String(assignment.subject_name).split(',');
         const customDays = assignment.hari ? String(assignment.hari).split(',') : [];
         const customTimes = assignment.jam ? String(assignment.jam).split(',') : [];
@@ -142,7 +152,6 @@ async function syncDataFromSupabase() {
           const cleanSubject = subject.trim();
           if (!cleanSubject) return;
 
-          // Ambil nilai dari Supabase sesuai urutan index, jika kosong gunakan data cadangan
           const finalHari = customDays[idx] ? customDays[idx].trim() : (customDays[0] ? customDays[0].trim() : defaultDays[idx % defaultDays.length]);
           const finalJam = customTimes[idx] ? customTimes[idx].trim() : (customTimes[0] ? customTimes[0].trim() : defaultTimes[idx % defaultTimes.length]);
 
@@ -161,19 +170,30 @@ async function syncDataFromSupabase() {
       localStorage.setItem('sis_jadwal', JSON.stringify(mappedJadwal));
     }
 
-    // 3. Ambil Data Absensi
+    // 4. Ambil Data Absensi (Format 6 Kolom Individual Murid)
     const { data: onlineAttendance } = await supabase.from('attendance').select('*');
     if (onlineAttendance && onlineAttendance.length > 0) {
-      const mappedAbsensi: AbsensiRecord[] = onlineAttendance.map((a: any) => ({
-        id: String(a.id),
-        kelas: a.academic_year,
-        tanggal: a.date,
-        data: typeof a.status === 'string' ? JSON.parse(a.status) : a.status
-      }));
-      localStorage.setItem('sis_absensi', JSON.stringify(mappedAbsensi));
+      const grouped: { [key: string]: AbsensiRecord } = {};
+      
+      onlineAttendance.forEach((row: any) => {
+        const key = `${row.academic_year}-${row.date}`;
+        if (!grouped[key]) {
+          grouped[key] = {
+            id: key,
+            kelas: row.academic_year,
+            tanggal: row.date,
+            data: {}
+          };
+        }
+        if (row.student_id) {
+          grouped[key].data[row.student_id] = row.status || 'Hadir';
+        }
+      });
+      
+      localStorage.setItem('sis_absensi', JSON.stringify(Object.values(grouped)));
     }
 
-    // 4. Ambil Data Nilai
+    // 5. Ambil Data Nilai
     const { data: onlineGrades } = await supabase.from('grades').select('*');
     if (onlineGrades && onlineGrades.length > 0) {
       const mappedNilai: Nilai[] = onlineGrades.map((n: any) => ({
@@ -198,11 +218,18 @@ async function uploadDataToSupabase(key: string, data: any) {
       const target = data[data.length - 1];
       if (!target) return;
       
-      await supabase.from('attendance').upsert({
-        academic_year: target.kelas,
-        date: target.tanggal,
-        status: target.data
-      }, { onConflict: 'academic_year,date' });
+      const studentIds = Object.keys(target.data);
+      for (const studentId of studentIds) {
+        const statusText = target.data[studentId];
+        
+        await supabase.from('attendance').upsert({
+          student_id: studentId,
+          date: target.tanggal,
+          status: statusText,
+          academic_year: target.kelas,
+          semester: 'Genap'
+        }, { onConflict: 'student_id,date' });
+      }
     }
 
     if (key === 'sis_nilai' && Array.isArray(data)) {
