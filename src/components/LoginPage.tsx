@@ -51,7 +51,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         .maybeSingle();
 
       if (user) {
-        // Penyelarasan role untuk data dari tabel 'users'
         let roleAplikasi: 'admin' | 'guru' | 'siswa' | 'ortu' = 'guru';
         if (user.role === 'admin') roleAplikasi = 'admin';
         else if (user.role === 'teacher' || user.role === 'kepsek') roleAplikasi = 'guru';
@@ -69,7 +68,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         return;
       }
 
-      // 2. Jika di tabel 'users' tidak ada, coba cari di tabel 'students' sebagai SISWA
+      // 2. Coba cari di tabel 'students' sebagai SISWA
       const { data: student, error: studentError } = await supabase
         .from('students')
         .select('*')
@@ -79,11 +78,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
 
       if (student) {
         const session: UserSession = {
-          username: student.username,
+          // Penyelarasan Ganda: Gunakan UUID id agar klop dengan data nis di src/data.ts
+          username: String(student.id), 
           role: 'siswa', 
           name: student.name,
           id: String(student.id),
-          extra: student.class_id || '' // Disesuaikan menggunakan class_id milikmu
+          extra: student.class_id || '' 
         };
 
         onLoginSuccess(session);
@@ -91,7 +91,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         return;
       }
 
-      // 3. Tambahan REVISI AMAN: Coba cari di tabel 'students' sebagai ORANG TUA/WALI
+      // 3. Coba cari di tabel 'students' sebagai ORANG TUA / WALI
       const { data: parent, error: parentError } = await supabase
         .from('students')
         .select('*')
@@ -101,11 +101,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
 
       if (parent) {
         const session: UserSession = {
-          username: parent.parent_username,
+          // Penyelarasan Ganda: Gunakan UUID id anak agar dasbor tengah sukses mencari nama Radit
+          username: String(parent.id), 
           role: 'ortu', 
-          name: `Wali dari ${parent.name}`, // Otomatis mengikat nama anak kandungnya
+          name: `Wali dari ${parent.name}`, 
           id: String(parent.id),
-          extra: parent.class_id || '' // Disesuaikan menggunakan class_id milikmu
+          extra: parent.class_id || '' 
         };
 
         onLoginSuccess(session);
