@@ -69,26 +69,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         return;
       }
 
-      // 2. Jika di tabel 'users' tidak ada, coba cari di tabel 'students' (untuk Siswa/Ortu)
-      // Mengasumsikan username siswa menggunakan kolom 'nis' atau 'name' di tabel kamu, dan pass-nya di kolom 'password'
+      // 2. Jika di tabel 'users' tidak ada, coba cari di tabel 'students' sebagai SISWA
       const { data: student, error: studentError } = await supabase
         .from('students')
         .select('*')
-        .eq('username', uInput) // Silakan sesuaikan kolom username di Supabase jika memakai nama lain (misal: 'nis')
+        .eq('username', uInput)
         .eq('password', pInput)
         .maybeSingle();
 
       if (student) {
-        // Deteksi apakah yang login Siswa atau Ortu berdasarkan pola ketikan password atau penanda lain
-        // Di sini kita defaultkan sebagai 'siswa' atau bisa disesuaikan dengan kebutuhan aplikasimu
-        const isOrtu = uInput.toLowerCase().includes('ortu') || pInput.toLowerCase().includes('ortu');
-        
         const session: UserSession = {
           username: student.username,
-          role: isOrtu ? 'ortu' : 'siswa', 
+          role: 'siswa', 
           name: student.name,
           id: String(student.id),
-          extra: student.class_name || ''
+          extra: student.class_id || '' // Disesuaikan menggunakan class_id milikmu
         };
 
         onLoginSuccess(session);
@@ -96,7 +91,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, addToast }
         return;
       }
 
-      // 3. Jika di kedua tabel tidak ditemukan data yang cocok
+      // 3. Tambahan REVISI AMAN: Coba cari di tabel 'students' sebagai ORANG TUA/WALI
+      const { data: parent, error: parentError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('parent_username', uInput)
+        .eq('parent_password', pInput)
+        .maybeSingle();
+
+      if (parent) {
+        const session: UserSession = {
+          username: parent.parent_username,
+          role: 'ortu', 
+          name: `Wali dari ${parent.name}`, // Otomatis mengikat nama anak kandungnya
+          id: String(parent.id),
+          extra: parent.class_id || '' // Disesuaikan menggunakan class_id milikmu
+        };
+
+        onLoginSuccess(session);
+        addToast(`Selamat datang Wali Murid dari ${parent.name}!`, 'success');
+        return;
+      }
+
+      // 4. Jika di ketiga skenario di atas tidak ditemukan data yang cocok
       setError('Username atau Password salah atau tidak terdaftar.');
       addToast('Login gagal, periksa kembali kredensial Anda.', 'error');
 
