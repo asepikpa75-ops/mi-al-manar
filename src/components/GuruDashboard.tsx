@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CalendarDays,
   UserCheck,
@@ -45,7 +45,7 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   const isWaliKelas = (() => {
     try {
       const savedGurus = localStorage.getItem('sis_guru');
-      if (!savedGurus) return true; // Fallback aman jika data belum ter-load
+      if (!savedGurus) return true;
       const guruData = JSON.parse(savedGurus);
       const currentGuruRecord = guruData.find(
         (g: any) => g.nama.toLowerCase() === currentTeacherName.toLowerCase()
@@ -56,31 +56,45 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
     }
   })();
 
-  // Input states for Attendance (Absensi) - Disesuaikan ke format MI kelas 1A
-  const [selectedAbsensiClass, setSelectedAbsensiClass] = useState('1A');
-  const [selectedAbsensiDate, setSelectedAbsensiDate] = useState(new Date().toISOString().split('T')[0]);
-  const [tempAbsensiData, setTempAbsensiData] = useState<{ [nis: string]: 'Hadir' | 'Izin' | 'Sakit' | 'Alfa' }>({});
-
-  // Input states for Grades (Nilai) - Disesuaikan ke format MI kelas 1A
-  const [selectedNilaiClass, setSelectedNilaiClass] = useState('1A');
-  const [selectedNilaiSubject, setSelectedNilaiSubject] = useState('Matematika');
-  const [tempNilaiData, setTempNilaiData] = useState<{
-    [nis: string]: { uh1: number; uh2: number; uts: number; uas: number };
-  }>({});
-
-  // Stats for Rekap Absensi Class Filter
-  const [rekapClass, setRekapClass] = useState('1A');
-
-  // 1. FILTER TEACHER'S INDIVIDUAL SCHEDULE
+  // 1. FILTER JADWAL MURNI GURU YANG LOGIN
   const teacherSchedules = jadwalList.filter((j) => {
     return j.guru.toLowerCase().includes(currentTeacherName.toLowerCase()) || 
            currentTeacherName.toLowerCase().includes(j.guru.toLowerCase());
   });
 
+  // KUNCI UTAMA: Ambil daftar kelas unik yang diajar oleh guru ini saja dari Supabase
+  const availableClasses = Array.from(new Set(teacherSchedules.map(j => j.kelas)));
+
+  // Input states untuk data fungsional (Default langsung diarahkan ke kelas pertama milik guru)
+  const [selectedAbsensiClass, setSelectedAbsensiClass] = useState('');
+  const [selectedAbsensiDate, setSelectedAbsensiDate] = useState(new Date().toISOString().split('T')[0]);
+  const [tempAbsensiData, setTempAbsensiData] = useState<{ [nis: string]: 'Hadir' | 'Izin' | 'Sakit' | 'Alfa' }>({});
+
+  const [selectedNilaiClass, setSelectedNilaiClass] = useState('');
+  const [selectedNilaiSubject, setSelectedNilaiSubject] = useState('Matematika');
+  const [tempNilaiData, setTempNilaiData] = useState<{
+    [nis: string]: { uh1: number; uh2: number; uts: number; uas: number };
+  }>({});
+
+  const [rekapClass, setRekapClass] = useState('');
+
+  // Efek otomatis sinkronisasi default dropdown sesuai hak kelas guru saat data termuat
+  useEffect(() => {
+    if (availableClasses.length > 0) {
+      if (!selectedAbsensiClass) setSelectedAbsensiClass(availableClasses[0]);
+      if (!selectedNilaiClass) setSelectedNilaiClass(availableClasses[0]);
+      if (!rekapClass) setRekapClass(availableClasses[0]);
+    }
+  }, [availableClasses]);
+
   // 2. ABSENSI ACTIONS
   const classStudents = siswaList.filter((s) => s.kelas === selectedAbsensiClass);
 
   const loadExistingAbsensi = () => {
+    if (!selectedAbsensiClass) {
+      addToast('Anda tidak memiliki hak akses kelas untuk dimuat!', 'error');
+      return;
+    }
     const existing = absensiList.find(
       (a) => a.kelas === selectedAbsensiClass && a.tanggal === selectedAbsensiDate
     );
@@ -124,6 +138,10 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   const gradeStudents = siswaList.filter((s) => s.kelas === selectedNilaiClass);
 
   const loadExistingGrades = () => {
+    if (!selectedNilaiClass) {
+      addToast('Pilih kelas terlebih dahulu!', 'error');
+      return;
+    }
     const initialGrades: { [nis: string]: { uh1: number; uh2: number; uts: number; uas: number } } = {};
     gradeStudents.forEach((s) => {
       const match = nilaiList.find((n) => n.siswaNIS === s.nis && n.mapel.toLowerCase() === selectedNilaiSubject.toLowerCase());
@@ -226,7 +244,6 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
             Jadwal Mengajar
           </button>
           
-          {/* PROTEKSI TAB INTERSTISIAL: Tombol ini hanya dirender jika statusnya Wali Kelas */}
           {isWaliKelas && (
             <button
               onClick={() => setActiveTab('absensi')}
@@ -247,7 +264,6 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
             Kelola Nilai Rapor
           </button>
 
-          {/* PROTEKSI TAB INTERSTISIAL: Rekap kehadiran harian hanya milik Wali Kelas */}
           {isWaliKelas && (
             <button
               onClick={() => setActiveTab('rekap')}
@@ -331,15 +347,15 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
               <p className="text-[11px] text-slate-500 mt-1">Pilih kelas serta tentukan tanggal absen terlebih dahulu.</p>
             </div>
             <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              {/* DROPDOWN DINAMIS BERDASARKAN HAK KELAS GURU */}
               <select
                 value={selectedAbsensiClass}
                 onChange={(e) => setSelectedAbsensiClass(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none"
+                className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none min-w-[100px]"
               >
-                <option value="1A">Kelas 1A</option>
-                <option value="1B">Kelas 1B</option>
-                <option value="2A">Kelas 2A</option>
-                <option value="3A">Kelas 3A</option>
+                {availableClasses.map((kelas) => (
+                  <option key={kelas} value={kelas}>Kelas {kelas}</option>
+                ))}
               </select>
               <input
                 type="date"
@@ -428,7 +444,7 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
         </div>
       )}
 
-      {/* RENDER INPUT NILAI (TERBUKA UNTUK KEDUA ROLE) */}
+      {/* RENDER INPUT NILAI */}
       {activeTab === 'nilai' && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-fade-scale">
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -440,14 +456,15 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
               <p className="text-[11px] text-slate-500 mt-1">Saring kelas dan mata pelajaran lalu isikan nilai UH1, UH2, UTS, dan UAS.</p>
             </div>
             <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              {/* DROPDOWN DINAMIS BERDASARKAN HAK KELAS GURU */}
               <select
                 value={selectedNilaiClass}
                 onChange={(e) => setSelectedNilaiClass(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none"
+                className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none min-w-[100px]"
               >
-                <option value="1A">Kelas 1A</option>
-                <option value="1B">Kelas 1B</option>
-                <option value="2A">Kelas 2A</option>
+                {availableClasses.map((kelas) => (
+                  <option key={kelas} value={kelas}>Kelas {kelas}</option>
+                ))}
               </select>
               <select
                 value={selectedNilaiSubject}
@@ -597,14 +614,15 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
               <p className="text-[11px] text-slate-500 mt-0.5">Laporan rekapitulasi persentase absensi dihitung otomatis berdasar tanggal absen.</p>
             </div>
             <div>
+              {/* DROPDOWN DINAMIS BERDASARKAN HAK KELAS GURU */}
               <select
                 value={rekapClass}
                 onChange={(e) => setRekapClass(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none"
+                className="px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-xl outline-none min-w-[100px]"
               >
-                <option value="1A">Kelas 1A</option>
-                <option value="1B">Kelas 1B</option>
-                <option value="2A">Kelas 2A</option>
+                {availableClasses.map((kelas) => (
+                  <option key={kelas} value={kelas}>Kelas {kelas}</option>
+                ))}
               </select>
             </div>
           </div>
